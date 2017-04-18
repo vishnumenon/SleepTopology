@@ -17,7 +17,7 @@ from zerodpersistence import *
 
 
 def getFeature(pd):
-    featureSize = 20
+    featureSize = 40
     persistences = map(lambda x: x[1]-x[0], pd)
     persistences.sort()
     if len(persistences) >= featureSize:
@@ -105,7 +105,7 @@ testY = y[:len(X)/4]
 trainX = X[len(X)/4:]
 trainY = y[len(X)/4:]
 
-clf = svm.SVC()
+clf = svm.SVC(decision_function_shape='ovr')
 clf.fit(trainX, trainY)
 
 tp = 0.0
