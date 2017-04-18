@@ -20,7 +20,7 @@ from zerodpersistence import *
 # f._close()
 # del f
 
-raw = mne.io.read_raw_edf('DREAMS/excerpt5.edf', preload=True, exclude=['event_pneumo_aut', 'PCPAP'])
+raw = mne.io.read_raw_edf('DREAMS/excerpt1.edf', preload=True, exclude=['event_pneumo_aut', 'PCPAP', 'VAB', 'NAF2P-A1', 'POS', 'FP2-A1', 'O2-A1', 'CZ2-A1', 'event_pneumo'])
 print(raw.ch_names)
 chan = raw.copy().pick_channels(['CZ-A1'])
 sigbufs = chan

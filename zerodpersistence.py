@@ -14,8 +14,7 @@ class Vertex(object):
         self.children.append(child)
 
 def getFunc0DPersistence(points):
-    print(points)
-    points = points[::3]
+    #points = points[::2]
     componentBirths = {}
     cc = 0
     points = sorted(points, key=lambda p: p[0])
