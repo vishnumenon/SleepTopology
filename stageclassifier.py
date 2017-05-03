@@ -9,27 +9,75 @@ from tralie.SlidingWindow import *
 
 import mne
 import random
-from sklearn import tree, svm
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import make_moons, make_circles, make_classification
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
-sampleSize = 150
-samplesPerEvent = 5
+names = ["Nearest Neighbors", "Linear SVM", "RBF SVM", "Poly SVM", "sigmoid SVM",
+         "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
+         "Naive Bayes", "QDA"]
+classifiers = [
+    KNeighborsClassifier(3),
+    SVC(kernel="linear", C=0.025),
+    SVC(gamma=2, C=1),
+    SVC(C=1, kernel="poly", decision_function_shape='ovr'),
+    SVC(C=1, kernel="sigmoid", decision_function_shape='ovr'),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1),
+    AdaBoostClassifier(),
+    GaussianNB(),
+    QuadraticDiscriminantAnalysis()]
 
-def getFeature(pd):
-    featureSize = 40
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+sampleSize = 6000
+samplesPerEvent = 2
+
+def getFeatureAlt(signal, pd):
+    minMax = [min(signal), max(signal)]
+    cellSize = 0.05
+    cellCount = (2 - 0.8) / cellSize
+    feature = [0] * int(cellCount * cellCount)
+    for [x, y] in pd:
+        position = int(cellCount * ((x - 0.8) / cellSize) + ((y - 0.8) / cellSize))
+        if(position >= len(feature)):
+            raise ValueError('Error binning: ' + str(x) + ", " + str(y))
+        feature[position] += 1
+    return minMax + feature
+
+def getFeature(signal, pd):
+    minMax = [min(signal), max(signal)]
+    featureSize = 30
     persistences = map(lambda x: x[1]-x[0], pd)
-    persistences.sort()
+    persistences.sort(reverse=True)
     if len(persistences) >= featureSize:
-        return persistences[:featureSize]
+        return minMax + persistences[:featureSize]
     else:
-        return persistences + [0]*(featureSize - len(persistences))
+        return minMax + persistences + [0]*(featureSize - len(persistences))
 
 X = []
 y = []
+
+filesToRead = 4
+newFileTestX = []
+newFileTestY = []
+
 f = 0
 with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as annots:
     for edf, ann in zip(edfs, annots):
         f += 1
-        if f > 2:
+        if f > filesToRead:
             break
         edf = edf.strip()
         ann = ann.strip()
@@ -41,6 +89,9 @@ with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as an
         events = mne.find_events(raw)
         for i in range(len(events) - 1):
             start, _, event = events[i]
+            if event in [6,7,8]:
+                print("Skipped event " + str(i))
+                continue
             end, _, _ = events[i+1]
             end = end - sampleSize - 1
             if end - start < 100:
@@ -50,11 +101,15 @@ with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as an
                 [eegfpz], timesfpz = fpz[0, start:(start+sampleSize)]
                 [eegpz], timespz = pz[0, start:(start+sampleSize)]
 
-                fpzX = getSlidingWindowInteger(eegfpz, 30, 2, 2)
+                dim = 100
+                tau = 2
+                dt = 15
+
+                fpzX = getSlidingWindowInteger(eegfpz, dim, tau, dt)
                 fpzX = fpzX - np.mean(fpzX, 1)[:, None]
                 fpzX = fpzX/np.sqrt(np.sum(fpzX**2, 1))[:, None]
 
-                pzX = getSlidingWindowInteger(eegpz, 30, 2, 2)
+                pzX = getSlidingWindowInteger(eegpz, dim, tau, dt)
                 pzX = pzX - np.mean(pzX, 1)[:, None]
                 pzX = pzX/np.sqrt(np.sum(pzX**2, 1))[:, None]
 
@@ -62,8 +117,12 @@ with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as an
                 [_, fpzPD] = doRipsFiltration(fpzX, 1)
                 [_, pzPD] = doRipsFiltration(pzX, 1)
 
-                X.append(getFeature(fpzPD) + getFeature(pzPD))
-                y.append(event)
+                if f == filesToRead:
+                    newFileTestX.append(getFeatureAlt(eegfpz, fpzPD) + getFeatureAlt(eegpz, pzPD));
+                    newFileTestY.append(event)
+                else:
+                    X.append(getFeatureAlt(eegfpz, fpzPD) + getFeatureAlt(eegpz, pzPD))
+                    y.append(event)
             print("Finished event " + str(i))
 
 combined = list(zip(X, y))
@@ -77,25 +136,54 @@ trainY = y[len(X)/4:]
 
 print("Training Classifier")
 
-#clf = svm.SVC(decision_function_shape='ovo')
-clf = tree.DecisionTreeClassifier()
-clf.fit(trainX, trainY)
+def testClassifier(clf, clfName):
+    print("Testing classfier: " + clfName)
+    clf.fit(trainX, trainY)
 
-accuracy = 0.0
-accuracyPerStage = [0.0]*9
-countPerStage = [0.0]*9
+    print("Testing on data from training files: ")
 
-for i in range(len(testY)):
-    pred = clf.predict(testX[i])
-    actual = testY[i]
-    countPerStage[actual] += 1.0
-    if pred == actual:
-        accuracy += 1.0
-        accuracyPerStage[actual] += 1.0
+    accuracy = 0.0
+    accuracyPerStage = [0.0]*9
+    countPerStage = [0.0]*9
 
-accuracyPerStage = map(lambda (a,b): a/b if b > 0 else 0, zip(accuracyPerStage, countPerStage))
+    for i in range(len(testY)):
+        pred = clf.predict(testX[i])
+        actual = testY[i]
+        countPerStage[actual] += 1.0
+        if pred == actual:
+            accuracy += 1.0
+            accuracyPerStage[actual] += 1.0
 
-accuracy = accuracy / len(testY)
-print("Accuracy: " + str(accuracy))
-print("Accuracy per stage: " + str(accuracyPerStage))
-print("Count per stage: " + str(countPerStage))
+    accuracyPerStage = map(lambda (a,b): a/b if b > 0 else 0, zip(accuracyPerStage, countPerStage))
+
+    accuracy = accuracy / len(testY)
+    print("Accuracy: " + str(accuracy))
+    print("Accuracy per stage: " + str(accuracyPerStage))
+    print("Count per stage: " + str(countPerStage))
+
+    print("Testing on data from unseen file: ")
+
+    accuracy = 0.0
+    accuracyPerStage = [0.0]*9
+    countPerStage = [0.0]*9
+
+    for i in range(len(newFileTestY)):
+        pred = clf.predict(newFileTestX[i])
+        actual = newFileTestY[i]
+        countPerStage[actual] += 1.0
+        if pred == actual:
+            accuracy += 1.0
+            accuracyPerStage[actual] += 1.0
+
+    accuracyPerStage = map(lambda (a,b): a/b if b > 0 else 0, zip(accuracyPerStage, countPerStage))
+
+    accuracy = accuracy / len(newFileTestY)
+    print("Accuracy: " + str(accuracy))
+    print("Accuracy per stage: " + str(accuracyPerStage))
+    print("Count per stage: " + str(countPerStage))
+
+for name, clf in zip(names, classifiers):
+    try:
+        testClassifier(clf, name)
+    except:
+        print("Unexpected error:" + str(sys.exc_info()[0]))

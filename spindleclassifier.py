@@ -9,17 +9,49 @@ import sys
 import re
 import random
 
-from tralie.TDA import *
-from tralie.SlidingWindow import *
-from sklearn.decomposition import PCA
-from sklearn import svm
 from zerodpersistence import *
 
+from tralie.TDA import *
+from tralie.SlidingWindow import *
+
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import make_moons, make_circles, make_classification
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+names = ["Nearest Neighbors", "Linear SVM", "RBF SVM", "Poly SVM", "sigmoid SVM",
+         "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
+         "Naive Bayes", "QDA"]
+classifiers = [
+    KNeighborsClassifier(3),
+    SVC(kernel="linear", C=0.025),
+    SVC(gamma=2, C=1),
+    SVC(C=1, kernel="poly", decision_function_shape='ovr'),
+    SVC(C=1, kernel="sigmoid", decision_function_shape='ovr'),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1),
+    AdaBoostClassifier(),
+    GaussianNB(),
+    QuadraticDiscriminantAnalysis()]
+
+
+featureSize = 40
 
 def getFeature(pd):
-    featureSize = 40
     persistences = map(lambda x: x[1]-x[0], pd)
-    persistences.sort()
+    persistences.sort(reverse=True)
     if len(persistences) >= featureSize:
         return persistences[:featureSize]
     else:
@@ -85,7 +117,6 @@ for i in range(2,7):
         PD = getFunc0DPersistence(data);
         feature = getFeature(PD)
         X.append(feature)
-        print(feature)
         y.append(1)
     for start, v in negatives.items():
         end = start + v
@@ -105,25 +136,29 @@ testY = y[:len(X)/4]
 trainX = X[len(X)/4:]
 trainY = y[len(X)/4:]
 
-clf = svm.SVC(decision_function_shape='ovr')
-clf.fit(trainX, trainY)
+for name, clf in zip(names, classifiers):
+    try:
+        print("Testing classifier: " + name)
+        clf.fit(trainX, trainY)
 
-tp = 0.0
-fp = 0.0
-tn = 0.0
-fn = 0.0
-for i in range(len(testY)):
-    pred = clf.predict(testX[i])
-    actual = testY[i]
-    if pred == 1 and pred == actual:
-        tp += 1.0
-    elif pred == 1 and pred != actual:
-        fp += 1.0
-    elif pred == 0 and pred == actual:
-        tn += 1.0
-    elif pred == 0 and pred != actual:
-        fn += 1.0
+        tp = 0.0
+        fp = 0.0
+        tn = 0.0
+        fn = 0.0
+        for i in range(len(testY)):
+            pred = clf.predict(testX[i])
+            actual = testY[i]
+            if pred == 1 and pred == actual:
+                tp += 1.0
+            elif pred == 1 and pred != actual:
+                fp += 1.0
+            elif pred == 0 and pred == actual:
+                tn += 1.0
+            elif pred == 0 and pred != actual:
+                fn += 1.0
 
-print("Accuracy: " + str((tp + tn) / (tp + tn + fp + fn)))
-print("Precision: " + str((tp) / (tp + fp)))
-print("Recall: " + str((tp) / (tp + fn)))
+        print("Accuracy: " + str((tp + tn) / (tp + tn + fp + fn)))
+        print("Precision: " + str((tp) / (tp + fp)))
+        print("Recall: " + str((tp) / (tp + fn)))
+    except:
+        print("Unexpected error:" + str(sys.exc_info()[0]))
