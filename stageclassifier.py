@@ -46,7 +46,7 @@ samplesPerEvent = 2
 
 def getFeatureAlt(signal, pd):
     minMax = [min(signal), max(signal)]
-    cellSize = 0.05
+    cellSize = 0.1
     cellCount = (2 - 0.8) / cellSize
     feature = [0] * int(cellCount * cellCount)
     for [x, y] in pd:
@@ -69,7 +69,7 @@ def getFeature(signal, pd):
 X = []
 y = []
 
-filesToRead = 4
+filesToRead = 40
 newFileTestX = []
 newFileTestY = []
 
@@ -92,6 +92,8 @@ with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as an
             if event in [6,7,8]:
                 print("Skipped event " + str(i))
                 continue
+            if event == 4:
+                event = 3
             end, _, _ = events[i+1]
             end = end - sampleSize - 1
             if end - start < 100:
@@ -117,7 +119,7 @@ with open('Sleep-EDF-DB/RECORDS') as edfs, open('Sleep-EDF-DB/HYPNOGRAMS') as an
                 [_, fpzPD] = doRipsFiltration(fpzX, 1)
                 [_, pzPD] = doRipsFiltration(pzX, 1)
 
-                if f == filesToRead:
+                if f > filesToRead * (7.0/10.0):
                     newFileTestX.append(getFeatureAlt(eegfpz, fpzPD) + getFeatureAlt(eegpz, pzPD));
                     newFileTestY.append(event)
                 else:

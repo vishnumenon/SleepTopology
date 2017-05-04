@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 names = ["Nearest Neighbors", "Linear SVM", "RBF SVM", "Poly SVM", "sigmoid SVM",
          "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
-         "Naive Bayes", "QDA"]
+         "Naive Bayes"]
 classifiers = [
     KNeighborsClassifier(3),
     SVC(kernel="linear", C=0.025),
@@ -43,9 +43,7 @@ classifiers = [
     RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
     MLPClassifier(alpha=1),
     AdaBoostClassifier(),
-    GaussianNB(),
-    QuadraticDiscriminantAnalysis()]
-
+    GaussianNB()]
 
 featureSize = 40
 
